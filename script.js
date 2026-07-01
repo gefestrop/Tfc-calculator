@@ -252,10 +252,10 @@ function mtCalc() {
         r.querySelector('.mt-need').textContent = bestResult.needs[i].rounded;
     });
 
-    const totalMb = bestResult.totalAlloyMb;
-    document.getElementById('mtTotalMb').textContent = Math.round(totalMb).toLocaleString();
-    document.getElementById('mtTotalIngots').textContent = Math.floor(totalMb / 144);
-    document.getElementById('mtVessels').textContent = Math.ceil(totalMb / vesselCap);
+    const actualMb = bestResult.needs.reduce((s, n, i) => s + n.rounded * ingredients[i].rate, 0);
+    document.getElementById('mtTotalMb').textContent = actualMb.toLocaleString();
+    document.getElementById('mtTotalIngots').textContent = Math.floor(actualMb / 144);
+    document.getElementById('mtVessels').textContent = Math.ceil(actualMb / vesselCap);
     document.getElementById('mtResults').classList.remove('hidden');
     mtUpdatePreview();
 }
