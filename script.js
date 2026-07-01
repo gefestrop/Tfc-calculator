@@ -204,8 +204,10 @@ function mtCalc() {
                 const mb = cur.reduce((s, u, i) => s + u * ingredients[i].rate, 0);
                 if (mb === 0) return;
                 const pts = cur.map((u, i) => u * ingredients[i].rate / mb * 100);
-                const dev = pts.reduce((s, ap, i) => s + Math.abs(ap - normTarget[i]), 0);
-                if (dev < bestScore) { bestScore = dev; bestResult = { units: [...cur], totalMb: mb, pcts: pts }; }
+                const pctDev = pts.reduce((s, ap, i) => s + Math.abs(ap - normTarget[i]), 0);
+                const volPenalty = Math.abs(mb - goalMb) / goalMb * 10;
+                const totalDev = pctDev + volPenalty;
+                if (totalDev < bestScore) { bestScore = totalDev; bestResult = { units: [...cur], totalMb: mb, pcts: pts }; }
                 return;
             }
             const { min, max } = ranges[idx];
