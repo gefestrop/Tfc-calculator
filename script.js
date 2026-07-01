@@ -194,65 +194,63 @@ function mtCalc() {
     let bestResult = null;
     let bestScore = Infinity;
 
-    function tryPcts(pcts) {
-        const totalAlloyMb = baseMb / (pcts[haveIdx] / 100);
-        let valid = true;
-        const needs = [];
-        for (let j = 0; j < ingredients.length; j++) {
-            const needMb = totalAlloyMb * (pcts[j] / 100);
-            const needUnits = needMb / ingredients[j].rate;
-            const rounded = Math.ceil(needUnits);
-            const diff = rounded - needUnits;
-            if (diff > 1) { valid = false; break; }
-            needs.push({ needMb, needUnits, rounded, diff });
-        }
-        if (!valid) return null;
-        const score = needs.reduce((s, n) => s + n.diff, 0);
-        return { pcts: [...pcts], totalAlloyMb, needs, score };
-    }
+    const targetPcts = ingredients.map(i => (i.pctMin + i.pctMax) / 2);
+    const sumTarget = targetPcts.reduce((a, b) => a + b, 0);
+    const normTarget = targetPcts.map(p => p / sumTarget * 100);
 
-    const pctRanges = ingredients.map(i => [i.pctMin || 0, i.pctMax || 0]);
+    const idealTotal = baseMb / (normTarget[haveIdx] / 100);
 
-    function search(idx, current) {
+    // For each non-base ingredient, try a range of unit counts
+    let ranges = ingredients.map((i, idx) => {
+        if (idx === haveIdx) return { min: i.have, max: i.have };
+        const idealUnits = idealTotal * normTarget[idx] / 100 / i.rate;
+        const min = Math.max(0, Math.floor(idealUnits) - 1);
+        const max = Math.ceil(idealUnits) + 2;
+        return { min, max };
+    });
+
+    function enumerate(idx, current) {
         if (idx === ingredients.length) {
-            const sum = current.reduce((a, b) => a + b, 0);
-            if (Math.abs(sum - 100) > 0.01) return;
-            const res = tryPcts(current);
-            if (res && res.score < bestScore) {
-                bestScore = res.score;
-                bestResult = res;
+            const actualMb = current.reduce((s, u, i) => s + u * ingredients[i].rate, 0);
+            const actualPcts = current.map((u, i) => u * ingredients[i].rate / actualMb * 100);
+            const dev = actualPcts.reduce((s, ap, i) => s + Math.abs(ap - normTarget[i]), 0);
+            const unitsOk = current.every(u => Number.isInteger(u) && u >= 0);
+            if (!unitsOk) return;
+            if (current[haveIdx] !== ingredients[haveIdx].have) return;
+            if (dev < bestScore) {
+                bestScore = dev;
+                bestResult = { units: [...current], totalMb: actualMb, pcts: actualPcts };
             }
             return;
         }
-        const [min, max] = pctRanges[idx];
-        const step = Math.max(1, Math.ceil((max - min) / 5));
-        for (let p = min; p <= max + 0.01; p += step) {
-            current.push(Math.round(p * 10) / 10);
-            search(idx + 1, current);
+        const { min, max } = ranges[idx];
+        for (let u = min; u <= max; u++) {
+            current.push(u);
+            enumerate(idx + 1, current);
             current.pop();
         }
     }
 
-    search(0, []);
+    enumerate(0, []);
 
     if (!bestResult) {
-        const midPcts = ingredients.map(i => (i.pctMin + i.pctMax) / 2);
-        const sum = midPcts.reduce((a, b) => a + b, 0);
-        const normPcts = midPcts.map(p => p / sum * 100);
-        const totalAlloyMb = baseMb / (normPcts[haveIdx] / 100);
-        bestResult = { pcts: normPcts, totalAlloyMb, needs: [] };
-        for (let j = 0; j < ingredients.length; j++) {
-            const needMb = totalAlloyMb * (normPcts[j] / 100);
-            const needUnits = needMb / ingredients[j].rate;
-            bestResult.needs.push({ needMb, needUnits, rounded: Math.ceil(needUnits), diff: 0 });
-        }
+        const fallbackUnits = ingredients.map((i, idx) => {
+            if (idx === haveIdx) return i.have;
+            return Math.round(idealTotal * normTarget[idx] / 100 / i.rate) || 1;
+        });
+        const fallbackMb = fallbackUnits.reduce((s, u, i) => s + u * ingredients[i].rate, 0);
+        bestResult = { units: fallbackUnits, totalMb: fallbackMb, pcts: normTarget };
     }
 
     rows.forEach((r, i) => {
-        r.querySelector('.mt-need').textContent = bestResult.needs[i].rounded;
+        r.querySelector('.mt-need').textContent = bestResult.units[i];
     });
 
-    const actualMb = bestResult.needs.reduce((s, n, i) => s + n.rounded * ingredients[i].rate, 0);
+    rows.forEach((r, i) => {
+        const pct = bestResult.pcts[i].toFixed(1);
+        r.querySelector('.mt-need').textContent = bestResult.units[i] + ' (' + pct + '%)';
+    });
+
     document.getElementById('mtTotalMb').textContent = actualMb.toLocaleString();
     document.getElementById('mtTotalIngots').textContent = Math.floor(actualMb / 144);
     document.getElementById('mtVessels').textContent = Math.ceil(actualMb / vesselCap);
