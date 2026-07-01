@@ -448,6 +448,9 @@ button:active { transform: translateY(0); }
 .btn-add:hover { border-color: rgba(167, 139, 250, 0.3); color: #a78bfa; transform: none; background: rgba(167, 139, 250, 0.04); }
 
 /* ===== scrollbar ===== */
+.mt-warning { color: #f87171; font-size: 13px; justify-content: center !important; border-top: 1px solid rgba(248,113,113,0.15) !important; padding-top: 10px !important; }
+.mt-warning.hidden { display: none; }
+
 @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 
 ::-webkit-scrollbar { width: 6px; }

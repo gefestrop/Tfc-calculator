@@ -78,8 +78,8 @@ m2AddGroup('');
 m2AddGroup('');
 
 const mtList = document.getElementById('mtList');
-const mtVesselCap = document.getElementById('mtVesselCap');
 const mtRecipeName = document.getElementById('mtRecipeName');
+const mtGoalIngots = document.getElementById('mtGoalIngots');
 
 const STORAGE_KEY = 'opencode_alloy_recipes';
 const RANGE_KEY = 'opencode_range_mode';
@@ -152,7 +152,6 @@ function mtCollect() {
 
 function mtCalc() {
     const rows = mtGetRows();
-    const vesselCap = +mtVesselCap.value || 1;
     const ingredients = mtCollect();
     if (ingredients.length < 2) return;
 
@@ -178,87 +177,122 @@ function mtCalc() {
         rows.forEach(r => r.querySelector('.mt-need').textContent = '—');
         document.getElementById('mtTotalMb').textContent = totalMb.toLocaleString();
         document.getElementById('mtTotalIngots').textContent = Math.floor(totalMb / 144);
-        document.getElementById('mtVessels').textContent = Math.ceil(totalMb / vesselCap);
         return;
     }
 
-    // CALC MODE: only one material has quantity, calculate others
-    const haveIdx = ingredients.findIndex(i => i.have > 0);
-    if (haveIdx === -1) return;
-
-    const base = ingredients[haveIdx];
-    const baseMb = base.have * base.rate;
-    const basePct = (base.pctMin + base.pctMax) / 2;
-    if (basePct === 0) return;
-
-    let bestResult = null;
-    let bestScore = Infinity;
+    // CALC MODE
+    const goalIng = +mtGoalIngots.value || 0;
+    let haveIdx = ingredients.findIndex(i => i.have > 0);
 
     const targetPcts = ingredients.map(i => (i.pctMin + i.pctMax) / 2);
     const sumTarget = targetPcts.reduce((a, b) => a + b, 0);
     const normTarget = targetPcts.map(p => p / sumTarget * 100);
 
-    const idealTotal = baseMb / (normTarget[haveIdx] / 100);
+    let bestResult = null;
+    let bestScore = Infinity;
 
-    // For each non-base ingredient, try a range of unit counts
-    let ranges = ingredients.map((i, idx) => {
-        if (idx === haveIdx) return { min: i.have, max: i.have };
-        const idealUnits = idealTotal * normTarget[idx] / 100 / i.rate;
-        const min = Math.max(0, Math.floor(idealUnits) - 1);
-        const max = Math.ceil(idealUnits) + 2;
-        return { min, max };
-    });
+    if (goalIng > 0) {
+        // from goal ingots
+        const goalMb = goalIng * 144;
+        const ranges = ingredients.map(i => ({
+            min: 0,
+            max: Math.ceil(goalMb / i.rate) + 2
+        }));
 
-    function enumerate(idx, current) {
-        if (idx === ingredients.length) {
-            const actualMb = current.reduce((s, u, i) => s + u * ingredients[i].rate, 0);
-            const actualPcts = current.map((u, i) => u * ingredients[i].rate / actualMb * 100);
-            const dev = actualPcts.reduce((s, ap, i) => s + Math.abs(ap - normTarget[i]), 0);
-            const unitsOk = current.every(u => Number.isInteger(u) && u >= 0);
-            if (!unitsOk) return;
-            if (current[haveIdx] !== ingredients[haveIdx].have) return;
-            if (dev < bestScore) {
-                bestScore = dev;
-                bestResult = { units: [...current], totalMb: actualMb, pcts: actualPcts };
+        function enumerate(idx, cur) {
+            if (idx === ingredients.length) {
+                const mb = cur.reduce((s, u, i) => s + u * ingredients[i].rate, 0);
+                if (mb === 0) return;
+                const pts = cur.map((u, i) => u * ingredients[i].rate / mb * 100);
+                const dev = pts.reduce((s, ap, i) => s + Math.abs(ap - normTarget[i]), 0);
+                if (dev < bestScore) { bestScore = dev; bestResult = { units: [...cur], totalMb: mb, pcts: pts }; }
+                return;
             }
-            return;
+            const { min, max } = ranges[idx];
+            for (let u = min; u <= max; u++) {
+                cur.push(u);
+                enumerate(idx + 1, cur);
+                cur.pop();
+            }
         }
-        const { min, max } = ranges[idx];
-        for (let u = min; u <= max; u++) {
-            current.push(u);
-            enumerate(idx + 1, current);
-            current.pop();
+        enumerate(0, []);
+
+        if (!bestResult) {
+            const fall = ingredients.map(i => Math.round(goalMb * normTarget[ingredients.indexOf(i)] / 100 / i.rate) || 1);
+            const mb = fall.reduce((s, u, i) => s + u * ingredients[i].rate, 0);
+            bestResult = { units: fall, totalMb: mb, pcts: normTarget };
         }
-    }
+    } else if (haveIdx !== -1) {
+        // from base material
+        const base = ingredients[haveIdx];
+        const baseMb = base.have * base.rate;
+        const basePct = (base.pctMin + base.pctMax) / 2;
+        if (basePct === 0) return;
 
-    enumerate(0, []);
+        const idealTotal = baseMb / (normTarget[haveIdx] / 100);
 
-    if (!bestResult) {
-        const fallbackUnits = ingredients.map((i, idx) => {
-            if (idx === haveIdx) return i.have;
-            return Math.round(idealTotal * normTarget[idx] / 100 / i.rate) || 1;
+        const ranges = ingredients.map((i, idx) => {
+            if (idx === haveIdx) return { min: i.have, max: i.have };
+            const iu = idealTotal * normTarget[idx] / 100 / i.rate;
+            return { min: Math.max(0, Math.floor(iu) - 1), max: Math.ceil(iu) + 2 };
         });
-        const fallbackMb = fallbackUnits.reduce((s, u, i) => s + u * ingredients[i].rate, 0);
-        bestResult = { units: fallbackUnits, totalMb: fallbackMb, pcts: normTarget };
-    }
 
-    rows.forEach((r, i) => {
-        r.querySelector('.mt-need').textContent = bestResult.units[i];
-    });
+        function enumerate(idx, cur) {
+            if (idx === ingredients.length) {
+                if (cur[haveIdx] !== ingredients[haveIdx].have) return;
+                const mb = cur.reduce((s, u, i) => s + u * ingredients[i].rate, 0);
+                const pts = cur.map((u, i) => u * ingredients[i].rate / mb * 100);
+                const dev = pts.reduce((s, ap, i) => s + Math.abs(ap - normTarget[i]), 0);
+                if (dev < bestScore || (!bestResult && dev === bestScore)) {
+                    bestScore = dev;
+                    bestResult = { units: [...cur], totalMb: mb, pcts: pts };
+                }
+                return;
+            }
+            const { min, max } = ranges[idx];
+            for (let u = min; u <= max; u++) {
+                cur.push(u);
+                enumerate(idx + 1, cur);
+                cur.pop();
+            }
+        }
+        enumerate(0, []);
+
+        if (!bestResult) {
+            const fall = ingredients.map((i, idx) => {
+                if (idx === haveIdx) return i.have;
+                return Math.round(idealTotal * normTarget[idx] / 100 / i.rate) || 1;
+            });
+            const mb = fall.reduce((s, u, i) => s + u * ingredients[i].rate, 0);
+            bestResult = { units: fall, totalMb: mb, pcts: normTarget };
+        }
+    } else return;
+
+    if (!bestResult) return;
 
     rows.forEach((r, i) => {
         const pct = bestResult.pcts[i].toFixed(1);
         r.querySelector('.mt-need').textContent = bestResult.units[i] + ' (' + pct + '%)';
     });
 
+    const actualMb = bestResult.totalMb;
     document.getElementById('mtTotalMb').textContent = actualMb.toLocaleString();
     document.getElementById('mtTotalIngots').textContent = Math.floor(actualMb / 144);
-    document.getElementById('mtVessels').textContent = Math.ceil(actualMb / vesselCap);
     document.getElementById('mtResults').classList.remove('hidden');
+
+    const warn = document.getElementById('mtWarning');
+    const maxDev = bestResult.pcts.reduce((s, ap, i) => Math.max(s, Math.abs(ap - normTarget[i])), 0);
+    if (maxDev > 2) {
+        warn.classList.remove('hidden');
+    } else {
+        warn.classList.add('hidden');
+    }
+
     mtUpdatePreview();
 }
 
 mtList.addEventListener('input', () => mtCalc());
+mtGoalIngots.addEventListener('input', () => mtCalc());
 mtList.addEventListener('click', e => {
     if (e.target.classList.contains('m2-remove')) {
         e.target.parentElement.remove();
