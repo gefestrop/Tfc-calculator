@@ -77,11 +77,19 @@
                     <label>Макс мб / сосуд</label>
                     <input type="number" id="mtVesselCap" value="3024" readonly tabindex="-1">
                 </div>
+                <div class="field toggle-wrap">
+                    <label>Режим процентов</label>
+                    <div class="toggle-group" onclick="mtToggleRange()">
+                        <span class="toggle-opt" id="mtToggleFixed">Фикс</span>
+                        <span class="toggle-track"><span class="toggle-thumb" id="mtToggleThumb"></span></span>
+                        <span class="toggle-opt" id="mtToggleRange">Диап</span>
+                    </div>
+                </div>
             </div>
             <div class="mt-header">
                 <span style="flex:2">Материал</span>
-                <span style="flex:1">% от</span>
-                <span style="flex:1">% до</span>
+                <span style="flex:1" id="mtHdrFrom">%</span>
+                <span style="flex:1" id="mtHdrTo">до</span>
                 <span style="flex:1">мб/ед</span>
                 <span style="flex:1">Есть (шт)</span>
                 <span style="flex:1">Нужно (шт)</span>

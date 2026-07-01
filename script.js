@@ -82,16 +82,38 @@ const mtVesselCap = document.getElementById('mtVesselCap');
 const mtRecipeName = document.getElementById('mtRecipeName');
 
 const STORAGE_KEY = 'opencode_alloy_recipes';
+const RANGE_KEY = 'opencode_range_mode';
+
+function mtToggleRange() {
+    const on = localStorage.getItem(RANGE_KEY) !== 'fixed';
+    const newMode = on ? 'fixed' : 'range';
+    localStorage.setItem(RANGE_KEY, newMode);
+    mtApplyRange(newMode === 'range');
+}
+
+function mtApplyRange(rangeOn) {
+    const thumb = document.getElementById('mtToggleThumb');
+    const fixedLabel = document.getElementById('mtToggleFixed');
+    const rangeLabel = document.getElementById('mtToggleRange');
+    thumb.className = 'toggle-thumb ' + (rangeOn ? 'right' : 'left');
+    fixedLabel.classList.toggle('active', !rangeOn);
+    rangeLabel.classList.toggle('active', rangeOn);
+    document.getElementById('mtHdrTo').style.display = rangeOn ? '' : 'none';
+    document.querySelectorAll('#mtList .mt-pct-max').forEach(el => el.style.display = rangeOn ? '' : 'none');
+    mtUpdatePreview();
+    mtCalc();
+}
 
 function mtGetRows() {
     return document.querySelectorAll('#mtList .mt-row');
 }
 
 function mtReadRow(r) {
+    const pctMin = +r.querySelector('.mt-pct-min').value || 0;
+    const pctMax = localStorage.getItem(RANGE_KEY) === 'range' ? (+r.querySelector('.mt-pct-max').value || 0) : pctMin;
     return {
         name: r.querySelector('.mt-name').value || '?',
-        pctMin: +r.querySelector('.mt-pct-min').value || 0,
-        pctMax: +r.querySelector('.mt-pct-max').value || 0,
+        pctMin, pctMax,
         rate: +r.querySelector('.mt-rate').value || 1,
         have: +r.querySelector('.mt-have').value || 0
     };
@@ -110,6 +132,7 @@ function mtAddRow(data) {
     data = data || { name: '', pctMin: '', pctMax: '', rate: 144, have: '', need: '0' };
     const d = document.createElement('div');
     d.className = 'mt-row';
+    const rangeOn = localStorage.getItem(RANGE_KEY) === 'range';
     d.innerHTML = '<input class="mt-name" value="" placeholder="Название">' +
         '<input type="number" class="mt-pct-min" value="" min="0" max="100" step="any" placeholder="%">' +
         '<input type="number" class="mt-pct-max" value="" min="0" max="100" step="any" placeholder="%">' +
@@ -118,6 +141,7 @@ function mtAddRow(data) {
         '<span class="mt-need">0</span>' +
         '<button class="m2-remove">x</button>';
     mtSetRow(d, data);
+    if (!rangeOn) d.querySelector('.mt-pct-max').style.display = 'none';
     mtList.appendChild(d);
 }
 
@@ -275,10 +299,12 @@ function mtUpdatePreview() {
     const el = document.getElementById('mtPreview');
     const ingredients = mtCollect();
     if (!ingredients.length) { el.innerHTML = '<span class="preview-empty">Нет ингредиентов</span>'; return; }
+    const rangeOn = localStorage.getItem(RANGE_KEY) === 'range';
     const pctOk = ingredients.reduce((s, i) => s + ((i.pctMin + i.pctMax) / 2), 0);
-    el.innerHTML = ingredients.map(i =>
-        '<span class="preview-chip">' + i.name + ' <em>' + i.pctMin + '–' + i.pctMax + '%</em></span>'
-    ).join('') +
+    el.innerHTML = ingredients.map(i => {
+        const pctStr = rangeOn ? (i.pctMin + '–' + i.pctMax + '%') : (i.pctMin + '%');
+        return '<span class="preview-chip">' + i.name + ' <em>' + pctStr + '</em></span>';
+    }).join('') +
     '<span class="preview-pct ' + (Math.abs(pctOk - 100) < 1 ? 'good' : 'bad') + '">' +
     Math.round(pctOk) + '%</span>';
 }
@@ -367,5 +393,8 @@ function mtImport() {
     }
 }
 
+// init
+if (localStorage.getItem(RANGE_KEY) !== 'range') localStorage.setItem(RANGE_KEY, 'fixed');
+mtApplyRange(localStorage.getItem(RANGE_KEY) === 'range');
 mtRenderGallery();
 mtReset();
