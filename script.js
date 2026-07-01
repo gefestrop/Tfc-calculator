@@ -153,14 +153,16 @@ function mtCollect() {
 function mtCalc() {
     const rows = mtGetRows();
     const vesselCap = +mtVesselCap.value || 1;
-    let totalPctMin = 0, totalPctMax = 0;
+    const ingredients = mtCollect();
+    if (ingredients.length < 2) return;
 
-    rows.forEach(r => {
-        totalPctMin += +r.querySelector('.mt-pct-min').value || 0;
-        totalPctMax += +r.querySelector('.mt-pct-max').value || 0;
-    });
-
+    const allHave = ingredients.filter(i => i.have > 0);
     const pctEl = document.getElementById('mtTotalPct');
+    const rangeOn = localStorage.getItem(RANGE_KEY) === 'range';
+
+    // total recipe pct display
+    const totalPctMin = ingredients.reduce((s, i) => s + i.pctMin, 0);
+    const totalPctMax = ingredients.reduce((s, i) => s + i.pctMax, 0);
     if (totalPctMin === totalPctMax) {
         pctEl.textContent = totalPctMin.toFixed(1) + '%';
         pctEl.style.color = Math.abs(totalPctMin - 100) < 0.01 ? '#4ade80' : '#f87171';
@@ -169,19 +171,26 @@ function mtCalc() {
         pctEl.style.color = (totalPctMin <= 100 && totalPctMax >= 100) ? '#4ade80' : '#f87171';
     }
 
-    const ingredients = mtCollect();
-    if (ingredients.length < 2) { return; }
+    if (allHave.length >= 2) {
+        // SUM MODE: user entered quantities for multiple materials, just sum
+        let totalMb = 0;
+        ingredients.forEach(i => { totalMb += i.have * i.rate; });
+        rows.forEach(r => r.querySelector('.mt-need').textContent = '—');
+        document.getElementById('mtTotalMb').textContent = totalMb.toLocaleString();
+        document.getElementById('mtTotalIngots').textContent = Math.floor(totalMb / 144);
+        document.getElementById('mtVessels').textContent = Math.ceil(totalMb / vesselCap);
+        return;
+    }
 
+    // CALC MODE: only one material has quantity, calculate others
     const haveIdx = ingredients.findIndex(i => i.have > 0);
-    if (haveIdx === -1) { return; }
+    if (haveIdx === -1) return;
 
     const base = ingredients[haveIdx];
     const baseMb = base.have * base.rate;
-    const basePct = (base.pctMin + base.pctMax) / 2; // use midpoint
-
+    const basePct = (base.pctMin + base.pctMax) / 2;
     if (basePct === 0) return;
 
-    // Try to find optimal percentages within ranges for clean numbers
     let bestResult = null;
     let bestScore = Infinity;
 
@@ -204,7 +213,6 @@ function mtCalc() {
 
     const pctRanges = ingredients.map(i => [i.pctMin || 0, i.pctMax || 0]);
 
-    // Helper: generate combinations of percentages
     function search(idx, current) {
         if (idx === ingredients.length) {
             const sum = current.reduce((a, b) => a + b, 0);
@@ -228,7 +236,6 @@ function mtCalc() {
     search(0, []);
 
     if (!bestResult) {
-        // Fallback: use midpoints
         const midPcts = ingredients.map(i => (i.pctMin + i.pctMax) / 2);
         const sum = midPcts.reduce((a, b) => a + b, 0);
         const normPcts = midPcts.map(p => p / sum * 100);
@@ -242,8 +249,7 @@ function mtCalc() {
     }
 
     rows.forEach((r, i) => {
-        const need = bestResult.needs[i];
-        r.querySelector('.mt-need').textContent = need.rounded;
+        r.querySelector('.mt-need').textContent = bestResult.needs[i].rounded;
     });
 
     const totalMb = bestResult.totalAlloyMb;
