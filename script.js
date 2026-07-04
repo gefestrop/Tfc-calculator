@@ -119,25 +119,32 @@ function mtRenderRuns(containerId, totalMb, materials) {
     const totalRuns = Math.ceil(totalMb / cap);
     el.innerHTML = '';
     el.classList.remove('hidden');
-    let allocated = materials.map(() => 0);
-    let cumVol = 0;
     for (let i = 1; i <= totalRuns; i++) {
-        const chunk = i < totalRuns ? cap : totalMb - cumVol;
-        cumVol += chunk;
         const line = document.createElement('div');
         line.className = 'alloy-run-line';
+        let units = materials.map(m => {
+            const idealMb = cap * m.pct / 100;
+            return Math.max(0, Math.round(idealMb / m.rate));
+        });
+        let runMb = units.reduce((s, u, j) => s + u * materials[j].rate, 0);
+        while (runMb > cap) {
+            let worst = -1, maxExcess = -1;
+            for (let j = 0; j < materials.length; j++) {
+                if (units[j] === 0) continue;
+                const idealMb = cap * materials[j].pct / 100;
+                const excess = units[j] * materials[j].rate - idealMb;
+                if (excess > maxExcess) { maxExcess = excess; worst = j; }
+            }
+            if (worst === -1) break;
+            units[worst]--;
+            runMb = units.reduce((s, u, k) => s + u * materials[k].rate, 0);
+        }
         let parts = [];
         for (let j = 0; j < materials.length; j++) {
-            const totalUnits = materials[j].units;
-            const targetCum = Math.round(totalUnits * cumVol / totalMb);
-            let take = targetCum - allocated[j];
-            if (take < 0) take = 0;
-            if (i === totalRuns) take = totalUnits - allocated[j];
-            allocated[j] += take;
-            if (take > 0) parts.push(materials[j].name + ' ' + take + ' шт');
+            if (units[j] > 0) parts.push(materials[j].name + ' ' + units[j] + ' шт');
         }
-        const ings = Math.floor(chunk / 144);
-        const rem = chunk % 144;
+        const ings = Math.floor(runMb / 144);
+        const rem = runMb % 144;
         let html = '<span class="label">Ходка ' + i + '</span><span class="value">' + parts.join(', ') + ' \u2192 ' + ings.toLocaleString() + ' сл';
         if (rem > 0) html += ' (' + rem.toLocaleString() + ' мб)';
         html += '</span>';
@@ -301,7 +308,8 @@ function mtCalc() {
         rows.forEach(r => r.querySelector('.mt-need').textContent = '—');
         document.getElementById('mtTotalMb').textContent = totalMb.toLocaleString();
         document.getElementById('mtTotalIngots').textContent = Math.floor(totalMb / 144);
-        mtAlloyUpdateVesselRun(totalMb, ingredients.map(i => ({ name: i.name, units: i.have, rate: i.rate })));
+        const sumPcts = ingredients.map(i => i.have * i.rate / totalMb * 100);
+        mtAlloyUpdateVesselRun(totalMb, ingredients.map((i, idx) => ({ name: i.name, rate: i.rate, pct: sumPcts[idx] })));
         return;
     }
 
@@ -405,7 +413,7 @@ function mtCalc() {
     const actualMb = bestResult.totalMb;
     document.getElementById('mtTotalMb').textContent = actualMb.toLocaleString();
     document.getElementById('mtTotalIngots').textContent = Math.floor(actualMb / 144);
-    mtAlloyUpdateVesselRun(actualMb, ingredients.map((i, idx) => ({ name: i.name, units: bestResult.units[idx], rate: i.rate })));
+    mtAlloyUpdateVesselRun(actualMb, ingredients.map((i, idx) => ({ name: i.name, rate: i.rate, pct: bestResult.pcts[idx] })));
     document.getElementById('mtResults').classList.remove('hidden');
 
     const warn = document.getElementById('mtWarning');
