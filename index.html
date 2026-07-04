@@ -54,10 +54,23 @@
         <div class="mode" id="modeAlloy">
             <div id="m2InputsList" class="inputs-container"></div>
             <button class="btn-add" id="m2AddBtn">+ Добавить металл</button>
+            <div class="row" style="margin-top:12px">
+                <div class="field toggle-wrap">
+                    <label>Режим</label>
+                    <div class="toggle-group" onclick="alloyToggleMode()">
+                        <span class="toggle-opt" id="m2ToggleVessel">Сосуд</span>
+                        <span class="toggle-track"><span class="toggle-thumb left" id="m2ToggleThumb"></span></span>
+                        <span class="toggle-opt" id="m2ToggleCrucible">Тигель</span>
+                    </div>
+                </div>
+            </div>
             <div class="results" id="m2Results">
                 <div><span class="label">Сумма</span><span class="value" id="m2TotalMb">0</span> мБ</div>
                 <div><span class="label">Слитки</span><span class="value" id="m2TotalIngots">0</span> шт.</div>
+                <div id="m2VesselRow"><span class="label">Нужно сосудов</span><span class="value" id="m2Vessels">0</span></div>
+                <div id="m2RunRow" class="hidden"><span class="label">Ходок</span><span class="value" id="m2RunsCount">0</span></div>
             </div>
+            <div class="m2-runs hidden" id="m2Runs"></div>
         </div>
 
         <div class="mode" id="modeTest">
@@ -85,6 +98,14 @@
                         <span class="toggle-opt" id="mtToggleRange">Диап</span>
                     </div>
                 </div>
+                <div class="field toggle-wrap">
+                    <label>Режим тары</label>
+                    <div class="toggle-group" onclick="alloyToggleMode()">
+                        <span class="toggle-opt" id="mtToggleVessel">Сосуд</span>
+                        <span class="toggle-track"><span class="toggle-thumb left" id="mtToggleThumb2"></span></span>
+                        <span class="toggle-opt" id="mtToggleCrucible">Тигель</span>
+                    </div>
+                </div>
             </div>
             <div class="mt-header">
                 <span style="flex:2">Материал</span>
@@ -105,8 +126,11 @@
                 <div><span class="label">Сумма %</span><span class="value" id="mtTotalPct">0%</span></div>
                 <div><span class="label">Итого сплава (мб)</span><span class="value" id="mtTotalMb">0</span></div>
                 <div><span class="label">Слитков</span><span class="value" id="mtTotalIngots">0</span></div>
+                <div id="mtVesselRow"><span class="label">Нужно сосудов</span><span class="value" id="mtVessels">0</span></div>
+                <div id="mtRunRow" class="hidden"><span class="label">Ходок</span><span class="value" id="mtRunsCount">0</span></div>
                 <div class="mt-warning hidden" id="mtWarning">⚠ Слишком мало материалов — точные проценты невозможны</div>
             </div>
+            <div class="mt-runs hidden" id="mtRuns"></div>
         </div>
     </div>
     <script src="script.js"></script>

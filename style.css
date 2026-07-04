@@ -177,7 +177,14 @@ button:active { transform: translateY(0); }
 .results .label { color: #7878a0; }
 .results .value { font-weight: 600; color: #e8e8f0; }
 .results .value.good { color: #6ee7b7; }
+.hidden { display: none; }
 .results.hidden { display: none; }
+.m2-runs, .mt-runs { margin-top: 0; padding: 8px 16px; background: rgba(167, 139, 250, 0.04); border-radius: 10px; }
+.m2-runs.hidden, .mt-runs.hidden { display: none; }
+.alloy-run-line { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; border-top: 1px solid rgba(255, 255, 255, 0.04); }
+.alloy-run-line:first-child { border-top: none; }
+.alloy-run-line .label { color: #a78bfa; font-weight: 600; }
+.alloy-run-line .value { color: #e8e8f0; font-weight: 400; text-align: right; }
 
 .inputs-container { margin-bottom: 16px; }
 

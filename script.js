@@ -49,6 +49,8 @@ const m2AddBtn = document.getElementById('m2AddBtn');
 const m2TotalMb = document.getElementById('m2TotalMb');
 const m2TotalIngots = document.getElementById('m2TotalIngots');
 
+const ALLOY_MODE_KEY = 'opencode_alloy_mode';
+
 function m2Calculate() {
     const inputs = document.querySelectorAll('#m2InputsList .metal-input');
     let total = 0;
@@ -59,6 +61,17 @@ function m2Calculate() {
         const pct = inp.parentElement.querySelector('.percentage');
         pct.textContent = total > 0 ? ((parseFloat(inp.value) || 0) / total * 100).toFixed(1) + '%' : '0%';
     });
+    const isVessel = localStorage.getItem(ALLOY_MODE_KEY) !== 'crucible';
+    if (isVessel) {
+        document.getElementById('m2Vessels').textContent = Math.ceil(total / 3024).toLocaleString();
+        document.getElementById('m2Runs').classList.add('hidden');
+    } else {
+        const cap = 4608;
+        const runs = Math.ceil(total / cap);
+        document.getElementById('m2RunsCount').textContent = runs.toLocaleString();
+        alloyRenderRuns('m2Runs', total, 144);
+    }
+    alloyUpdateResults();
 }
 
 function m2AddGroup(val) {
@@ -76,6 +89,100 @@ m2InputsList.addEventListener('click', e => {
 m2AddBtn.addEventListener('click', () => m2AddGroup(''));
 m2AddGroup('');
 m2AddGroup('');
+
+function alloyRenderRuns(containerId, totalMb, ingotRate) {
+    const el = document.getElementById(containerId);
+    const cap = 4608;
+    if (totalMb <= cap) { el.classList.add('hidden'); return; }
+    const totalRuns = Math.ceil(totalMb / cap);
+    el.innerHTML = '';
+    el.classList.remove('hidden');
+    let remaining = totalMb;
+    for (let i = 1; i <= totalRuns; i++) {
+        const chunk = Math.min(remaining, cap);
+        const ings = Math.floor(chunk / ingotRate);
+        const rem = chunk % ingotRate;
+        const line = document.createElement('div');
+        line.className = 'alloy-run-line';
+        line.innerHTML = '<span class="label">Ходка ' + i + '</span><span class="value">' + chunk.toLocaleString() + ' мб \u2192 ' + ings.toLocaleString() + ' сл';
+        if (rem > 0) line.innerHTML += ' (' + rem.toLocaleString() + ' мб)';
+        line.innerHTML += '</span>';
+        el.appendChild(line);
+        remaining -= chunk;
+    }
+}
+
+function mtRenderRuns(containerId, totalMb, materials) {
+    const el = document.getElementById(containerId);
+    const cap = 4608;
+    if (totalMb <= cap) { el.classList.add('hidden'); return; }
+    const totalRuns = Math.ceil(totalMb / cap);
+    el.innerHTML = '';
+    el.classList.remove('hidden');
+    let allocated = materials.map(() => 0);
+    let cumVol = 0;
+    for (let i = 1; i <= totalRuns; i++) {
+        const chunk = i < totalRuns ? cap : totalMb - cumVol;
+        cumVol += chunk;
+        const line = document.createElement('div');
+        line.className = 'alloy-run-line';
+        let parts = [];
+        for (let j = 0; j < materials.length; j++) {
+            const totalUnits = materials[j].units;
+            const targetCum = Math.round(totalUnits * cumVol / totalMb);
+            let take = targetCum - allocated[j];
+            if (take < 0) take = 0;
+            if (i === totalRuns) take = totalUnits - allocated[j];
+            allocated[j] += take;
+            if (take > 0) parts.push(materials[j].name + ' ' + take + ' шт');
+        }
+        const ings = Math.floor(chunk / 144);
+        const rem = chunk % 144;
+        let html = '<span class="label">Ходка ' + i + '</span><span class="value">' + parts.join(', ') + ' \u2192 ' + ings.toLocaleString() + ' сл';
+        if (rem > 0) html += ' (' + rem.toLocaleString() + ' мб)';
+        html += '</span>';
+        line.innerHTML = html;
+        el.appendChild(line);
+    }
+}
+
+function alloyToggleMode() {
+    const isVessel = localStorage.getItem(ALLOY_MODE_KEY) !== 'crucible';
+    localStorage.setItem(ALLOY_MODE_KEY, isVessel ? 'crucible' : 'vessel');
+    applyAlloyMode();
+    if (document.getElementById('modeAlloy').classList.contains('active')) m2Calculate();
+    if (document.getElementById('modeTest').classList.contains('active')) mtCalc();
+}
+
+function applyAlloyMode() {
+    const isVessel = localStorage.getItem(ALLOY_MODE_KEY) !== 'crucible';
+    // simple alloy toggles
+    const m2Thumb = document.getElementById('m2ToggleThumb');
+    const m2V = document.getElementById('m2ToggleVessel');
+    const m2C = document.getElementById('m2ToggleCrucible');
+    if (m2Thumb) {
+        m2Thumb.className = 'toggle-thumb ' + (isVessel ? 'left' : 'right');
+        m2V.classList.toggle('active', isVessel);
+        m2C.classList.toggle('active', !isVessel);
+    }
+    // advanced alloy toggles
+    const mtThumb = document.getElementById('mtToggleThumb2');
+    const mtV = document.getElementById('mtToggleVessel');
+    const mtC = document.getElementById('mtToggleCrucible');
+    if (mtThumb) {
+        mtThumb.className = 'toggle-thumb ' + (isVessel ? 'left' : 'right');
+        mtV.classList.toggle('active', isVessel);
+        mtC.classList.toggle('active', !isVessel);
+    }
+}
+
+function alloyUpdateResults() {
+    const isVessel = localStorage.getItem(ALLOY_MODE_KEY) !== 'crucible';
+    document.querySelectorAll('.m2-vessel-row, #m2VesselRow').forEach(el => el.classList.toggle('hidden', !isVessel));
+    document.querySelectorAll('.m2-run-row, #m2RunRow').forEach(el => el.classList.toggle('hidden', isVessel));
+    document.querySelectorAll('.mt-vessel-row, #mtVesselRow').forEach(el => el.classList.toggle('hidden', !isVessel));
+    document.querySelectorAll('.mt-run-row, #mtRunRow').forEach(el => el.classList.toggle('hidden', isVessel));
+}
 
 const mtList = document.getElementById('mtList');
 const mtRecipeName = document.getElementById('mtRecipeName');
@@ -150,6 +257,23 @@ function mtCollect() {
     return Array.from(rows).map(r => mtReadRow(r));
 }
 
+function mtAlloyUpdateVesselRun(totalMb, materials) {
+    const isVessel = localStorage.getItem(ALLOY_MODE_KEY) !== 'crucible';
+    if (isVessel) {
+        document.getElementById('mtVessels').textContent = Math.ceil(totalMb / 3024).toLocaleString();
+        document.getElementById('mtRuns').classList.add('hidden');
+    } else {
+        const cap = 4608;
+        document.getElementById('mtRunsCount').textContent = Math.ceil(totalMb / cap).toLocaleString();
+        if (materials && materials.length) {
+            mtRenderRuns('mtRuns', totalMb, materials);
+        } else {
+            alloyRenderRuns('mtRuns', totalMb, 144);
+        }
+    }
+    alloyUpdateResults();
+}
+
 function mtCalc() {
     const rows = mtGetRows();
     const ingredients = mtCollect();
@@ -177,6 +301,7 @@ function mtCalc() {
         rows.forEach(r => r.querySelector('.mt-need').textContent = '—');
         document.getElementById('mtTotalMb').textContent = totalMb.toLocaleString();
         document.getElementById('mtTotalIngots').textContent = Math.floor(totalMb / 144);
+        mtAlloyUpdateVesselRun(totalMb, ingredients.map(i => ({ name: i.name, units: i.have, rate: i.rate })));
         return;
     }
 
@@ -280,6 +405,7 @@ function mtCalc() {
     const actualMb = bestResult.totalMb;
     document.getElementById('mtTotalMb').textContent = actualMb.toLocaleString();
     document.getElementById('mtTotalIngots').textContent = Math.floor(actualMb / 144);
+    mtAlloyUpdateVesselRun(actualMb, ingredients.map((i, idx) => ({ name: i.name, units: bestResult.units[idx], rate: i.rate })));
     document.getElementById('mtResults').classList.remove('hidden');
 
     const warn = document.getElementById('mtWarning');
@@ -434,6 +560,8 @@ function mtImport() {
 }
 
 // init
+if (localStorage.getItem(ALLOY_MODE_KEY) !== 'vessel' && localStorage.getItem(ALLOY_MODE_KEY) !== 'crucible') localStorage.setItem(ALLOY_MODE_KEY, 'vessel');
+applyAlloyMode();
 if (localStorage.getItem(RANGE_KEY) !== 'range') localStorage.setItem(RANGE_KEY, 'fixed');
 mtApplyRange(localStorage.getItem(RANGE_KEY) === 'range');
 mtRenderGallery();
